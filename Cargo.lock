@@ -3717,6 +3717,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-open-grant"
+version = "0.0.1"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "integer-sqrt",
+ "linked-hash-map",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-randomness-collective-flip"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.16#19162e43be45817b44c7d48e50d03f074f60fbf4"
