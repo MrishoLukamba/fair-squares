@@ -5,112 +5,99 @@
 
 pub use pallet::*;
 
+
+use frame_support::{̨̨
+	pallet_prelude::*,
+	codec::{Decode, Encode},
+	traits::{ReservableCurrency, ExistenceRequirement, Currency, WithdrawReasons,Get
+	}
+};
+use frame_system::{ensure_signed, ensure_root};
+use sp_runtime::{
+	traits::{AccountIdConversion},
+	ModuleId,
+};
+
+use sp_std::prelude::*;
+use sp_std::{convert::{TryInto}};
+
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_support::{
-        pallet_prelude::*,
-        codec::{Decode, Encode},
-        traits::{ReservableCurrency, ExistenceRequirement, Currency, WithdrawReasons,Get
-        };
+    use frame_system::pallet_prelude::BlockNumberFor;
 
-    use frame_system::{ensure_signed, ensure_root};
-    use sp_runtime::{
-        traits::{AccountIdConversion},
-        ModuleId,
-    };
 
-    use sp_std::prelude::*;
-    use sp_std::{convert::{TryInto}};
-
-/// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Config: frame_system::Config {
+	#[pallet::config]
+    pub trait Config: frame_system::Config {
 	// used to generate sovereign account
-	// refer: https://github.com/paritytech/substrate/blob/743accbe3256de2fc615adcaa3ab03ebdbbb4dbd/frame/treasury/src/lib.rs#L92
-	type ModuleId: Get<ModuleId>;
+    
+	#[pallet::constant]
+    type PalletId: Get<PalletId>;
 
 	/// The currency in which the housefund will be denominated
 	type Currency: ReservableCurrency<Self::AccountId>;
 
-	/// Because this pallet emits events, it depends on the runtime's definition of an event.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
-}
+    pub type HousingFund = u32;
 
-pub type Fund = u32;
-
-type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountIdOf<T>>>::Balance;
-type FundOf<T> = Fund<AccountIdOf<T>, <T as frame_system::Config>::BlockNumber>;
-type ContributionOf<T> = Contribution<AccountIdOf<T>, BalanceOf<T>>;
-type GrantOf<T> = Grant<AccountIdOf<T>, BalanceOf<T>, <T as frame_system::Config>::BlockNumber>;
-
-
-// Grant in round
-#[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
-pub struct Grant<AccountId, Balance, BlockNumber> {
-	Fund_index: FundIndex,
-	contributions: Vec<Contribution<AccountId, Balance>>,
-	is_approved: bool,
-	is_canceled: bool,
-	is_withdrawn: bool,
-	withdrawal_expiration: BlockNumber,
-	matching_fund: Balance,
-}
-
-impl<AccountId, Balance: From<u32>, BlockNumber: From<u32>> Round<AccountId, Balance, BlockNumber> {
-    fn new(start: BlockNumber, end: BlockNumber, matching_fund: Balance, Fund_indexes: Vec<FundIndex>) -> Round<AccountId, Balance, BlockNumber> { 
-		let mut grant_round  = Round {
-			start: start,
-			end: end,
-			matching_fund: matching_fund,
-			grants: Vec::new(),
-			is_canceled: false,
-			is_finalized: false,
-		};
-
-		// Fill in the grants structure in advance
-		for Fund_index in Fund_indexes {
-			grant_round.grants.push(Grant {
-				Fund_index: Fund_index,
-				contributions: Vec::new(),
-				is_approved: false,
-				is_canceled: false,
-				is_withdrawn: false,
-				withdrawal_expiration: (0 as u32).into(),
-				matching_fund: (0 as u32).into(),
-			});
-		}
-
-		grant_round
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountIdOf<T>>>::Balance;
+    type FundOf<T> = HousingFund<AccountIdOf<T>, <T as frame_system::Config>::BlockNumber>;
+    type ContributionOf<T> = Contribution<AccountIdOf<T>, BalanceOf<T>>;
 	}
-} 
+    #[pallet::pallet]
+	#[pallet::without_storage_info]
+	pub struct Pallet<T>(_);
+	/// Configure the pallet by specifying the parameters and types on which it depends.
+	#[pallet::config]
+    pub trait Config: frame_system::Config {
+	// used to generate sovereign account
+    
+	#[pallet::constant]
+    type PalletId: Get<PalletId>;
 
-/// The contribution users made to a grant Fund.
-#[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
-pub struct Contribution<AccountId, Balance> {
-	account_id: AccountId,
-	value: Balance,
-}
+	/// The currency in which the housefund will be denominated
+	type Currency: ReservableCurrency<Self::AccountId>;}
 
-/// Fund struct
-#[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
-#[cfg_attr(feature = "std", derive(serde::Serialize))]
-pub struct Fund<AccountId, BlockNumber> {
-	name: Vec<u8>,
-	logo: Vec<u8>,
-	description: Vec<u8>,
-	website: Vec<u8>,
-	/// The account that will receive the funds if the campaign is successful
-	owner: AccountId,
-	create_block_number: BlockNumber,
-}
+    pub type HousingFund = u32;
 
-// The pallet's runtime storage items.
-// https://substrate.dev/docs/en/knowledgebase/runtime/storage
-decl_storage! {
-	// A unique name is used to ensure that the pallet's storage items are isolated.
-	// This name may be updated, but each pallet in the runtime must use a unique name.
-	// ---------------------------------vvvvvvvvvvvvvv
-	trait Store for Module<T: Config> as OpenGrant {
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountIdOf<T>>>::Balance;
+    type FundOf<T> = HousingFund<AccountIdOf<T>, <T as frame_system::Config>::BlockNumber>;
+    type ContributionOf<T> = Contribution<AccountIdOf<T>, BalanceOf<T>>, <T as frame_system::Config>::BlockNumber;
+
+
+    // Grant in round
+    #[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
+    pub struct HousingFund<AccountId, Balance, BlockNumber> {
+        // Fund_index: FundIndex,
+        contributions: Vec<Contribution<AccountId, Balance, BlockNumber>>,
+        // is_approved: bool,
+        is_withdrawn: bool,
+        fund: Balance,
+    }
+
+    /// The contribution users made to a grant Fund.
+    #[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
+    pub struct Contribution<AccountId, Balance,BlockNumber> {
+        account_id: AccountId,
+        value: Balance,
+		blocknumber: BlockNumber,
+    }
+
+    #[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
+    #[cfg_attr(feature = "std", derive(serde::Serialize))]
+    pub struct Fund<AccountId, BlockNumber> {
+        name: Vec<u8>,
+        logo: Vec<u8>,
+        description: Vec<u8>,
+        website: Vec<u8>,
+        /// The account that will receive the funds if the campaign is successful
+        owner: AccountId,
+        create_block_number: BlockNumber,
+    }
+
+
+	#[pallet::storage]
+    trait Store for Module<T: Config> as HousingFund {
 		// Learn more about declaring storage items:
 		// https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
 		Funds get(fn grants): map hasher(blake2_128_concat) FundIndex => Option<FundOf<T>>;
@@ -121,17 +108,11 @@ decl_storage! {
 
 		MaxGrantCountPerRound get(fn max_grant_count_per_round) config(init_max_grant_count_per_round): u32;
 		WithdrawalExpiration get(fn withdrawal_expiration) config(init_withdrawal_expiration): T::BlockNumber;
-
-		IsIdentityRequired get(fn is_identity_required) config(init_is_identity_required): bool;
 	}
-}
 
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
-decl_event!(
-	pub enum Event<T> where Balance = BalanceOf<T>, AccountId = <T as frame_system::Config>::AccountId, <T as frame_system::Config>::BlockNumber {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T> where Balance = BalanceOf<T>, AccountId = <T as frame_system::Config>::AccountId, <T as frame_system::Config>::BlockNumber {
 		FundCreated(FundIndex),
 		RoundCreated(RoundIndex),
 		ContributeSucceed(AccountId, FundIndex, Balance, BlockNumber),
@@ -142,11 +123,10 @@ decl_event!(
 		FundSucceed(),
 		RoundFinalized(RoundIndex),
 	}
-);
 
-// Errors inform users that something went wrong.
-decl_error! {
-	pub enum Error for Module<T: Config> {
+
+    #[pallet::error]
+    pub enum Error <T> {
 		/// Error names should be descriptive.
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
@@ -167,7 +147,6 @@ decl_error! {
 		GrantApproved,
 		GrantNotApproved,
 		InvalidAccount,
-		IdentityNeeded,
 		StartBlockNumberTooSmall,
 		RoundNotProcessing,
 		RoundCanceled,
@@ -178,12 +157,12 @@ decl_error! {
 		NotEnoughFund,
 		InvalidFundIndexes,
 	}
-}
 
-// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-// These functions materialize as "extrinsics", which are often compared to transactions.
-// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
-decl_module! {
+
+    // Dispatchable functions allows users to interact with the pallet and invoke state changes.
+    // These functions materialize as "extrinsics", which are often compared to transactions.
+    // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
+    decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		// Errors must be initialized if they are used by the pallet.
 		type Error = Error<T>;
@@ -195,20 +174,6 @@ decl_module! {
 		#[weight = 10_000 + T::DbWeight::get().reads_writes(2,2)]
 		pub fn create_Fund(origin, name: Vec<u8>, logo: Vec<u8>, description: Vec<u8>, website: Vec<u8>) {
 			let who = ensure_signed(origin)?;
-
-			// Check if identity is required
-			let is_identity_needed = IsIdentityRequired::get();
-			if is_identity_needed {
-				let identity = pallet_identity::Module::<T>::identity(who.clone()).ok_or(Error::<T>::IdentityNeeded)?;
-				let mut is_found_judgement = false;
-				for judgement in identity.judgements.iter() {
-					if judgement.1 == pallet_identity::Judgement::Reasonable || judgement.1 == pallet_identity::Judgement::KnownGood {
-						is_found_judgement = true;
-						break;
-					}
-				}
-				ensure!(is_found_judgement, Error::<T>::IdentityNeeded);
-			}
 
 			// Validation
 			ensure!(name.len() > 0, Error::<T>::InvalidParam);
@@ -528,14 +493,6 @@ decl_module! {
 			<WithdrawalExpiration<T>>::put(withdrawal_expiration);
 		}
 
-		/// set is_identity_required
-		#[weight = 10_000 + T::DbWeight::get().writes(1)]
-		pub fn set_is_identity_required(origin, is_identity_required: bool) {
-			ensure_root(origin)?;
-			IsIdentityRequired::put(is_identity_required);
-		}
-	}
-}
 
 impl<T: Config> Module<T> {
 	/// The account ID of the fund pot.
@@ -543,10 +500,10 @@ impl<T: Config> Module<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn account_id() -> T::AccountId {
-		return T::ModuleId::get().into_account();
+		return T::PalletId::get().into_account();
 	}
 
-	pub fn Fund_account_id(index: FundIndex) -> T::AccountId {
+	pub fn Fund_account_id(index: ) -> T::AccountId {
 		T::ModuleId::get().into_sub_account(index)
 	}
 
@@ -599,5 +556,32 @@ impl<T: Config> Module<T> {
 		}
 
 		used_fund
+	}
+}
+
+impl<AccountId, Balance: From<u32>, BlockNumber: From<u32>> Round<AccountId, Balance, BlockNumber> {
+	fn new(start: BlockNumber, end: BlockNumber, matching_fund: Balance, Fund_indexes: Vec<FundIndex>) -> Round<AccountId, Balance, BlockNumber> { 
+		let mut grant_round  = Round {
+			start: start,
+			end: end,
+			matching_fund: matching_fund,
+			grants: Vec::new(),
+			is_canceled: false,
+			is_finalized: false,
+		};
+
+		for HousingFund in HousingFund {
+			grant_round.grants.push(Grant {
+				Fund_index: Fund_index,
+				contributions: Vec::new(),
+				is_approved: false,
+				is_canceled: false,
+				is_withdrawn: false,
+				withdrawal_expiration: (0 as u32).into(),
+				matching_fund: (0 as u32).into(),
+			});
+		}
+
+		grant_round
 	}
 }
