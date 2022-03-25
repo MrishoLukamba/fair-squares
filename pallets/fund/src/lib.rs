@@ -6,12 +6,13 @@
 pub use pallet::*;
 
 
-use frame_support::{̨̨
+use frame_support::{
 	pallet_prelude::*,
 	codec::{Decode, Encode},
 	traits::{ReservableCurrency, ExistenceRequirement, Currency, WithdrawReasons,Get
 	}
 };
+
 use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	traits::{AccountIdConversion},
@@ -23,12 +24,8 @@ use sp_std::{convert::{TryInto}};
 
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_system::pallet_prelude::BlockNumberFor;
-
-
 	#[pallet::config]
     pub trait Config: frame_system::Config {
-	// used to generate sovereign account
     
 	#[pallet::constant]
     type PalletId: Get<PalletId>;
@@ -43,6 +40,7 @@ pub mod pallet {
     type FundOf<T> = HousingFund<AccountIdOf<T>, <T as frame_system::Config>::BlockNumber>;
     type ContributionOf<T> = Contribution<AccountIdOf<T>, BalanceOf<T>>;
 	}
+
     #[pallet::pallet]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -62,15 +60,13 @@ pub mod pallet {
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountIdOf<T>>>::Balance;
     type FundOf<T> = HousingFund<AccountIdOf<T>, <T as frame_system::Config>::BlockNumber>;
-    type ContributionOf<T> = Contribution<AccountIdOf<T>, BalanceOf<T>>, <T as frame_system::Config>::BlockNumber;
+    type ContributionOf<T> = Contribution<AccountIdOf<T>, BalanceOf<T>, <T as frame_system::Config>::BlockNumber>;
 
 
     // Grant in round
     #[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
     pub struct HousingFund<AccountId, Balance, BlockNumber> {
-        // Fund_index: FundIndex,
         contributions: Vec<Contribution<AccountId, Balance, BlockNumber>>,
-        // is_approved: bool,
         is_withdrawn: bool,
         fund: Balance,
     }
@@ -83,45 +79,23 @@ pub mod pallet {
 		blocknumber: BlockNumber,
     }
 
-    #[derive(Encode, Decode, Default, PartialEq, Eq, Clone, Debug)]
-    #[cfg_attr(feature = "std", derive(serde::Serialize))]
-    pub struct Fund<AccountId, BlockNumber> {
-        name: Vec<u8>,
-        logo: Vec<u8>,
-        description: Vec<u8>,
-        website: Vec<u8>,
-        /// The account that will receive the funds if the campaign is successful
-        owner: AccountId,
-        create_block_number: BlockNumber,
-    }
 
 
 	#[pallet::storage]
-    trait Store for Module<T: Config> as HousingFund {
+	#[pallet::getter(fn)]
 		// Learn more about declaring storage items:
 		// https://substrate.dev/docs/en/knowledgebase/runtime/storage#declaring-storage-items
-		Funds get(fn grants): map hasher(blake2_128_concat) FundIndex => Option<FundOf<T>>;
-		FundCount get(fn Fund_count): FundIndex;
-
-		Rounds get(fn rounds): map hasher(blake2_128_concat) RoundIndex => Option<RoundOf<T>>;
-		RoundCount get(fn round_count): RoundIndex;
-
-		MaxGrantCountPerRound get(fn max_grant_count_per_round) config(init_max_grant_count_per_round): u32;
-		WithdrawalExpiration get(fn withdrawal_expiration) config(init_withdrawal_expiration): T::BlockNumber;
+		FundCount get(fn fund):HousingFund;
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> where Balance = BalanceOf<T>, AccountId = <T as frame_system::Config>::AccountId, <T as frame_system::Config>::BlockNumber {
-		FundCreated(FundIndex),
-		RoundCreated(RoundIndex),
-		ContributeSucceed(AccountId, FundIndex, Balance, BlockNumber),
-		GrantCanceled(RoundIndex, FundIndex),
-		GrantWithdrawn(RoundIndex, FundIndex, Balance, Balance),
+		ContributeSucceed(AccountId, Balance, BlockNumber),
+		Contribution
 		GrantApproved(RoundIndex, FundIndex),
 		RoundCanceled(RoundIndex),
 		FundSucceed(),
-		RoundFinalized(RoundIndex),
 	}
 
 
@@ -134,18 +108,6 @@ pub mod pallet {
 		/// There was an overflow.
 		Overflow,
 		///
-		RoundStarted,
-		RoundNotEnded,
-		StartBlockNumberInvalid,
-		EndBlockNumberInvalid,
-		EndTooEarly,
-		NoActiveRound,
-		NoActiveGrant,
-		InvalidParam,
-		GrantCanceled,
-		GrantWithdrawn,
-		GrantApproved,
-		GrantNotApproved,
 		InvalidAccount,
 		StartBlockNumberTooSmall,
 		RoundNotProcessing,
@@ -162,37 +124,17 @@ pub mod pallet {
     // Dispatchable functions allows users to interact with the pallet and invoke state changes.
     // These functions materialize as "extrinsics", which are often compared to transactions.
     // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
-    decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: T::Origin {
-		// Errors must be initialized if they are used by the pallet.
-		type Error = Error<T>;
-
-		// Events must be initialized if they are used by the pallet.
-		fn deposit_event() = default;
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 
 		/// Create Fund
 		#[weight = 10_000 + T::DbWeight::get().reads_writes(2,2)]
 		pub fn create_Fund(origin, name: Vec<u8>, logo: Vec<u8>, description: Vec<u8>, website: Vec<u8>) {
 			let who = ensure_signed(origin)?;
 
-			// Validation
-			ensure!(name.len() > 0, Error::<T>::InvalidParam);
-			ensure!(logo.len() > 0, Error::<T>::InvalidParam);
-			ensure!(description.len() > 0, Error::<T>::InvalidParam);
-			ensure!(website.len() > 0, Error::<T>::InvalidParam);
 			
 			let index = FundCount::get();
 			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
-
-			// Create a grant 
-			let Fund = FundOf::<T> {
-				name: name,
-				logo: logo,
-				description: description,
-				website: website,
-				owner: who,
-				create_block_number: <frame_system::Module<T>>::block_number(),
-			};
 
 			// Add grant to list
 			<Funds<T>>::insert(index, Fund);
@@ -207,7 +149,6 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			ensure!(fund_balance > (0 as u32).into(), Error::<T>::InvalidParam);
 
-			// Transfer matching fund to module account
 			// No fees are paid here if we need to create this account; that's why we don't just
 			// use the stock `transfer`.
 			<T as Config>::Currency::resolve_creating(&Self::account_id(), <T as Config>::Currency::withdraw(
@@ -220,90 +161,6 @@ pub mod pallet {
 			Self::deposit_event(RawEvent::FundSucceed());
 		}
 
-		/// Schedule a round
-		/// grant_indexes: the grants were selected for this round
-		#[weight = 10_000 + T::DbWeight::get().reads_writes(4,3)]
-		pub fn schedule_round(origin, start: T::BlockNumber, end: T::BlockNumber, matching_fund: BalanceOf<T>, Fund_indexes: Vec<FundIndex>) {
-			ensure_root(origin)?;
-			let now = <frame_system::Module<T>>::block_number();
-
-			// Check whether the funds are sufficient
-			let used_fund = Self::get_used_fund();
-			let free_balance = <T as Config>::Currency::free_balance(&Self::account_id());
-
-			ensure!(free_balance - used_fund >= matching_fund, Error::<T>::NotEnoughFund);
-
-			ensure!(Fund_indexes.len() > 0, Error::<T>::InvalidFundIndexes);
-			// The number of items cannot exceed the maximum
-			ensure!(Fund_indexes.len() <= MaxGrantCountPerRound::get().try_into().unwrap(), Error::<T>::GrantAmountExceed);
-			// The end block must be greater than the start block
-			ensure!(end > start, Error::<T>::EndTooEarly);
-			// Both the starting block number and the ending block number must be greater than the current number of blocks
-			ensure!(start > now, Error::<T>::StartBlockNumberInvalid);
-			ensure!(end > now, Error::<T>::EndBlockNumberInvalid);
-
-			// Fund_index should be smaller than Fund count
-			let Fund_count = FundCount::get();
-			for Fund_index in Fund_indexes.iter() {
-				ensure!(*Fund_index < Fund_count, Error::<T>::InvalidFundIndexes);
-			}
-
-			// Find the last valid round
-			let mut last_valid_round: Option<RoundOf::<T>> = None;
-			let index = RoundCount::get();
-			for _i in (0..index).rev() {
-				let round = <Rounds<T>>::get(index-1).unwrap();
-				if !round.is_canceled {
-					last_valid_round = Some(round);
-					break;
-				}
-			}
-
-			// The start time must be greater than the end time of the last valid round
-			match last_valid_round {
-				Some(round) => {
-					ensure!(start > round.end, Error::<T>::StartBlockNumberTooSmall);
-				},
-				None => {}
-			}
-
-			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
-
-			let round = RoundOf::<T>::new(start, end, matching_fund, Fund_indexes);
-
-			// Add grant round to list
-			<Rounds<T>>::insert(index, round);
-			RoundCount::put(next_index);
-
-			Self::deposit_event(RawEvent::RoundCreated(index));
-		}
-
-		/// Cancel a round
-		/// This round must have not started yet
-		#[weight = 10_000 + T::DbWeight::get().reads_writes(3,2)]
-		pub fn cancel_round(origin, round_index: RoundIndex) {
-			ensure_root(origin)?;
-			let now = <frame_system::Module<T>>::block_number();
-			let count = RoundCount::get();
-			let mut round = <Rounds<T>>::get(round_index).ok_or(Error::<T>::NoActiveRound)?;
-
-			// Ensure current round is not started
-			ensure!(round.start > now, Error::<T>::RoundStarted);
-			// This round cannot be cancelled
-			ensure!(!round.is_canceled, Error::<T>::RoundCanceled);
-
-			round.is_canceled = true;
-			<Rounds<T>>::insert(round_index, round.clone());
-
-			Self::deposit_event(RawEvent::RoundCanceled(count-1));
-		}
-
-
-			round.is_finalized = true;
-			<Rounds<T>>::insert(round_index, round.clone());
-
-			Self::deposit_event(RawEvent::RoundFinalized(round_index));
-		}
 
 		/// Contribute a grant
 		#[weight = 10_000 + T::DbWeight::get().reads_writes(2,1)]
@@ -376,43 +233,6 @@ pub mod pallet {
 			Self::deposit_event(RawEvent::ContributeSucceed(who, Fund_index, value, now));
 		}
 
-		/// Approve Fund
-		/// If the Fund is approve, the Fund owner can withdraw funds
-		#[weight = 10_000 + T::DbWeight::get().reads_writes(2,1)]
-		pub fn approve(origin, round_index: RoundIndex, Fund_index: FundIndex) {
-			ensure_root(origin)?;
-			let mut round = <Rounds<T>>::get(round_index).ok_or(Error::<T>::NoActiveRound)?;
-			ensure!(round.is_finalized, Error::<T>::RoundNotFinalized);
-			ensure!(!round.is_canceled, Error::<T>::RoundCanceled);
-			let grants = &mut round.grants;
-
-			// The round must have ended
-			let now = <frame_system::Module<T>>::block_number();
-			// This round must be over
-			ensure!(round.end < now, Error::<T>::RoundNotEnded);
-
-			// Find grant from list
-			let mut found_grant: Option<&mut GrantOf::<T>> = None;
-			for grant in grants.iter_mut() {
-				if grant.Fund_index == Fund_index {
-					found_grant = Some(grant);
-					break;
-				}
-			}
-			let mut grant = found_grant.ok_or(Error::<T>::NoActiveGrant)?;
-
-			// Can't let users vote in the cancered round
-			ensure!(!grant.is_canceled, Error::<T>::GrantCanceled);
-			ensure!(!grant.is_approved, Error::<T>::GrantApproved);
-
-			// set is_approved
-			grant.is_approved = true;
-			grant.withdrawal_expiration = now + <WithdrawalExpiration<T>>::get();
-
-			<Rounds<T>>::insert(round_index, round.clone());
-
-			Self::deposit_event(RawEvent::GrantApproved(round_index, Fund_index));
-		}
 
 		/// Withdraw
 		#[weight = 10_000 + T::DbWeight::get().reads_writes(3,1)]
@@ -449,7 +269,6 @@ pub mod pallet {
 
 			let matching_fund = grant.matching_fund;
 
-			// Distribute CLR amount
 			// Return funds to caller without charging a transfer fee
 			let _ = <T as Config>::Currency::resolve_into_existing(&Fund.owner, <T as Config>::Currency::withdraw(
 				&Self::account_id(),
@@ -574,14 +393,10 @@ impl<AccountId, Balance: From<u32>, BlockNumber: From<u32>> Round<AccountId, Bal
 			grant_round.grants.push(Grant {
 				Fund_index: Fund_index,
 				contributions: Vec::new(),
-				is_approved: false,
-				is_canceled: false,
-				is_withdrawn: false,
 				withdrawal_expiration: (0 as u32).into(),
 				matching_fund: (0 as u32).into(),
 			});
 		}
-
-		grant_round
 	}
+	grant_round
 }
